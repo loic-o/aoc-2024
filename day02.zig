@@ -27,14 +27,47 @@ pub fn main() !void {
     std.log.info("Answer (p2): {}", .{answer});
 }
 
+const Dir = enum {
+    incr,
+    decr,
+    unkn,
+};
+
+const LevelError = error{ Constant, TooLarge, DirFlip };
+
+fn check_pair(first: u32, second: u32, dir: Dir) LevelError!Dir {
+    const diff: i32 = @as(i32, @intCast(second)) - @as(i32, @intCast(first));
+    const new_dir: Dir = if (diff > 0) .incr else .decr;
+
+    if (diff == 0) return LevelError.Constant;
+    if (@abs(diff) > 3) return LevelError.TooLarge;
+    if (dir != .unkn and new_dir != dir) return LevelError.DirFlip;
+
+    return new_dir;
+}
+
+const ReportResult = struct {
+    safe: bool = true,
+    fail_idx: ?usize = null,
+    fail_err: ?LevelError = null,
+};
+
+fn check_report(levels: []const u32) ReportResult {
+    var dir = Dir.unkn;
+    for (0..levels.len - 1) |i| {
+        dir = check_pair(levels[i], levels[i + 1], dir) catch |err| {
+            return .{
+                .safe = false,
+                .fail_idx = i,
+                .fail_err = err,
+            };
+        };
+    }
+    return .{ .safe = true };
+}
+
 fn part_one_solve(allocator: std.mem.Allocator, data: []const u8) !usize {
     var safe_count: usize = 0;
-
-    const Dir = enum {
-        incr,
-        decr,
-        unkn,
-    };
 
     var reader = parse.LineReader.init(data);
 
@@ -58,39 +91,8 @@ fn part_one_solve(allocator: std.mem.Allocator, data: []const u8) !usize {
             return err;
         }
 
-        var dir = Dir.unkn;
-        var safe = true;
-
-        for (0..levels.items.len - 1) |i| {
-            const diff: i32 = @as(i32, @intCast(levels.items[i + 1])) - @as(i32, @intCast(levels.items[i]));
-
-            if (diff == 0 or @abs(diff) > 3) {
-                safe = false;
-                break;
-            }
-
-            switch (dir) {
-                .unkn => if (diff > 0) {
-                    dir = .incr;
-                } else {
-                    dir = .decr;
-                },
-                .incr => if (diff < 0) {
-                    safe = false;
-                    break;
-                },
-                .decr => if (diff > 0) {
-                    safe = false;
-                    break;
-                },
-            }
-        }
-
-        if (safe) {
-            safe_count += 1;
-        }
-
-        // std.log.debug("[{s}...{any}...{}]", .{ record, levels.items, safe });
+        const result = check_report(levels.items);
+        if (result.safe) safe_count += 1;
     } else |err| {
         // expecting EOF, otherwise fail
         std.debug.assert(err == parse.LineReaderError.EOF);
@@ -100,17 +102,71 @@ fn part_one_solve(allocator: std.mem.Allocator, data: []const u8) !usize {
 }
 
 fn part_two_solve(allocator: std.mem.Allocator, data: []const u8) !usize {
-    _ = allocator;
-    _ = data;
-    return 0;
+    var safe_count: usize = 0;
+
+    var reader = parse.LineReader.init(data);
+
+    var levels = std.ArrayList(u32).init(allocator);
+    defer levels.deinit();
+
+    while (reader.next()) |record| {
+        levels.clearRetainingCapacity();
+
+        var parser = parse.IntParser(u32).init(record);
+
+        while (parser.next()) |maybe_level| {
+            if (maybe_level) |level| {
+                try levels.append(level);
+            } else {
+                break;
+            }
+        } else |err| {
+            // this is likely i parsing error
+            std.debug.panic("parse err {} on [{s}]...so far {any}", .{ err, record, levels.items });
+            return err;
+        }
+
+        const result = check_report(levels.items);
+        if (result.safe) {
+            safe_count += 1;
+        } else {
+            inner: for (0..levels.items.len) |i| {
+                const damp = try std.mem.concat(allocator, u32, &[_][]const u32{
+                    levels.items[0..i],
+                    levels.items[i + 1 ..],
+                });
+                defer allocator.free(damp);
+                const r2 = check_report(damp);
+                if (r2.safe) {
+                    safe_count += 1;
+                    break :inner;
+                }
+            }
+        }
+    } else |err| {
+        // expecting EOF, otherwise fail
+        std.debug.assert(err == parse.LineReaderError.EOF);
+    }
+
+    return safe_count;
 }
 
 test "part one test" {
-    const answer = try part_one_solve(std.testing.allocator, test_data);
-    try std.testing.expect(answer == 2);
+    const expected = 2;
+    const actual = try part_one_solve(std.testing.allocator, test_data);
+    std.testing.expect(actual == expected) catch |err| {
+        std.debug.print("expected {}, got {}\n", .{ expected, actual });
+        return err;
+    };
+    std.debug.print("part one test PASSED.\n", .{});
 }
 
 test "part two test" {
-    const answer = try part_two_solve(std.testing.allocator, test_data);
-    try std.testing.expect(answer == 0);
+    const expected = 4;
+    const actual = try part_two_solve(std.testing.allocator, test_data);
+    std.testing.expect(actual == expected) catch |err| {
+        std.debug.print("expected {}, got {}\n", .{ expected, actual });
+        return err;
+    };
+    std.debug.print("part one test PASSED.\n", .{});
 }
