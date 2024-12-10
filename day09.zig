@@ -1,7 +1,7 @@
 const std = @import("std");
 // answers:
 // part 1: 6201130364722
-// part 2: ?
+// part 2: 6221662795602
 
 const puzzle_input = @embedFile("day09_data.txt");
 const test_input = "2333133121414131402";
@@ -64,10 +64,140 @@ fn part_one(allocator: std.mem.Allocator, input: []const u8) !usize {
     return checksum;
 }
 
+const FileBlock = struct {
+    id: usize,
+    sz: usize,
+};
+
+const BlockTypeTag = enum {
+    file,
+    empty,
+};
+
+const Block = union(BlockTypeTag) {
+    file: FileBlock,
+    empty: usize,
+};
+
+const BlockNode = std.DoublyLinkedList(Block).Node;
+
+fn dump_blocks(head: ?*BlockNode) void {
+    var maybe_node = head;
+    while (maybe_node) |node| {
+        switch (node.data) {
+            .file => |fb| {
+                for (0..fb.sz) |_| {
+                    std.debug.print("{}", .{fb.id});
+                }
+            },
+            .empty => |sz| {
+                for (0..sz) |_| {
+                    std.debug.print("{s}", .{"."});
+                }
+            },
+        }
+        maybe_node = node.next;
+    }
+    std.debug.print("\n", .{});
+}
+
 fn part_two(allocator: std.mem.Allocator, input: []const u8) !usize {
-    _ = allocator;
-    _ = input;
-    return 0;
+    var blocks = std.DoublyLinkedList(Block){};
+
+    defer {
+        while (blocks.popFirst()) |n| {
+            allocator.destroy(n);
+        }
+    }
+
+    for (0..input.len) |i| {
+        if (input[i] < '0') continue;
+        const size = std.fmt.parseInt(usize, input[i .. i + 1], 10) catch |err| {
+            std.debug.print("tried to parseInt on [{}]\n", .{input[i]});
+            return err;
+        };
+
+        var node = try allocator.create(BlockNode);
+
+        node.data = if (i % 2 == 0) Block{
+            .file = FileBlock{
+                .id = i / 2,
+                .sz = size,
+            },
+        } else Block{
+            .empty = size,
+        };
+
+        blocks.append(node);
+    }
+
+    var maybe_move_block = blocks.last;
+
+    while (maybe_move_block) |move_block| {
+        if (move_block.prev == null) {
+            // this is the first file, so we are done.
+            break;
+        }
+        maybe_move_block = move_block.prev;
+
+        switch (move_block.data) {
+            .empty => {}, // not a file
+            .file => |move_file| {
+                // std.debug.print("({}) ", .{move_file.id});
+                // dump_blocks(blocks.first);
+
+                var maybe_free_block = blocks.first;
+
+                while (maybe_free_block) |free_block| {
+                    maybe_free_block = free_block.next;
+
+                    switch (free_block.data) {
+                        .file => |file| {
+                            if (file.id == move_file.id) {
+                                // we have reached ourselves
+                                break;
+                            }
+                        },
+                        .empty => |free_space| {
+                            if (move_file.sz <= free_space) {
+                                var replacement_node = try allocator.create(BlockNode);
+                                replacement_node.data = Block{ .empty = move_file.sz };
+
+                                blocks.insertAfter(move_block, replacement_node);
+                                blocks.remove(move_block);
+                                blocks.insertBefore(free_block, move_block);
+
+                                free_block.data = Block{ .empty = free_space - move_file.sz };
+
+                                break;
+                            }
+                        },
+                    }
+                }
+            },
+        }
+    }
+
+    var block_num: usize = 0;
+    var checksum: usize = 0;
+    var maybe_node = blocks.first;
+
+    while (maybe_node) |node| {
+        switch (node.data) {
+            .file => |fb| {
+                for (0..fb.sz) |_| {
+                    checksum += (block_num * fb.id);
+                    block_num += 1;
+                }
+            },
+            .empty => |sz| {
+                block_num += sz;
+            },
+        }
+        maybe_node = node.next;
+    }
+
+    return checksum;
 }
 
 pub fn main() !void {
