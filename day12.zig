@@ -3,6 +3,9 @@
 // part 1: 1477924
 // part 2:
 //
+// my take : part 1 is a flood-fill prob
+//           part 2 is an edge finding prob - not sure how to do this ATM
+//
 const std = @import("std");
 
 const Grid = @import("grid.zig").Grid;
