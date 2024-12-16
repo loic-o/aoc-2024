@@ -38,7 +38,7 @@ pub const Grid = struct {
         };
     }
 
-    pub fn locOfIndex(self: Self, idx: usize) ?Loc {
+    pub fn locOfIndexRaw(self: Self, idx: usize) ?Loc {
         if (idx >= self.data.len) return null;
         const r = idx / (self.width + 1);
         const c = idx - ((self.width + 1) * r);
@@ -48,15 +48,31 @@ pub const Grid = struct {
         };
     }
 
-    pub fn indexOfLoc(self: Self, loc: Loc) ?usize {
+    pub fn locOfIndex(self: Self, idx: usize) ?Loc {
+        const r = idx / self.width;
+        if (r >= self.height) return null;
+
+        const c = idx - (self.width * r);
+        if (c >= self.width) return null;
+
+        return Loc{ .col = c, .row = r };
+    }
+
+    pub fn indexRawOfLoc(self: Self, loc: Loc) ?usize {
         if (!self.isLocValid(loc)) return null;
         const idx = loc.row * (self.width + 1) + loc.col;
         return idx;
     }
 
+    pub fn indexOfLoc(self: Self, loc: Loc) ?usize {
+        if (!self.isLocValid(loc)) return null;
+        const idx = loc.row * self.width + loc.col;
+        return idx;
+    }
+
     pub fn locOfScalar(self: Self, value: u8) ?Loc {
         if (std.mem.indexOfScalar(u8, self.data, value)) |p| {
-            return self.locOfIndex(p);
+            return self.locOfIndexRaw(p);
         } else {
             return null;
         }
@@ -70,7 +86,7 @@ pub const Grid = struct {
 
     pub fn get(self: Self, loc: Loc) ?u8 {
         if (!self.isLocValid(loc)) return null;
-        const idx = self.indexOfLoc(loc) orelse return null;
+        const idx = self.indexRawOfLoc(loc) orelse return null;
         return self.data[idx];
     }
 
@@ -182,4 +198,32 @@ test "get and move" {
 
     loc.col = 0;
     try std.testing.expect(grid.move(loc, .west) == null);
+}
+
+test "indexing" {
+    const test_input =
+        \\12345678
+        \\12345678
+        \\12345678
+        \\12345678
+        \\12345678
+        \\12345678
+    ;
+    const grid = Grid.fromInput(test_input);
+
+    var loc = grid.locOfIndexRaw(11).?;
+    try assert_equal(usize, 2, loc.col, "col");
+    try assert_equal(usize, 1, loc.row, "row");
+    try assert_equal(u8, '3', grid.get(loc).?, "val");
+
+    var idx = grid.indexRawOfLoc(loc).?;
+    try assert_equal(usize, 11, idx, "idx raw");
+
+    loc = grid.locOfIndex(19).?;
+    try assert_equal(usize, 3, loc.col, "col");
+    try assert_equal(usize, 2, loc.row, "row");
+    try assert_equal(u8, '4', grid.get(loc).?, "val");
+
+    idx = grid.indexOfLoc(loc).?;
+    try assert_equal(usize, 19, idx, "idx");
 }

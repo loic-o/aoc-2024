@@ -60,7 +60,7 @@ fn part_one(allocator: std.mem.Allocator, input: []const u8) !usize {
         std.debug.assert(loc_list.len == 0);
 
         {
-            const loc = grid.locOfIndex(th_idx) orelse unreachable;
+            const loc = grid.locOfIndexRaw(th_idx) orelse unreachable;
             var node = try allocator.create(LocListNodeType);
             node.data = loc;
             loc_list.append(node);
@@ -79,7 +79,7 @@ fn part_one(allocator: std.mem.Allocator, input: []const u8) !usize {
                     const neigh_elv = charToInt(grid.get(neighbor_loc)) orelse unreachable;
                     if (neigh_elv == curr_elv + 1) {
                         if (neigh_elv == 9) {
-                            const i = grid.indexOfLoc(neighbor_loc) orelse unreachable;
+                            const i = grid.indexRawOfLoc(neighbor_loc) orelse unreachable;
                             if (th_bits.isSet(i) == false) {
                                 th_score += 1;
                                 th_bits.set(i);
@@ -123,7 +123,7 @@ fn part_two(allocator: std.mem.Allocator, input: []const u8) !usize {
         std.debug.assert(loc_list.len == 0);
 
         {
-            const loc = grid.locOfIndex(th_idx) orelse unreachable;
+            const loc = grid.locOfIndexRaw(th_idx) orelse unreachable;
             var node = try allocator.create(LocListNodeType);
             node.data = loc;
             loc_list.append(node);
