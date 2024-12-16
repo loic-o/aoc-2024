@@ -1,6 +1,6 @@
 // answers:
 // part 1: 36571
-// part 2: ?
+// part 2: 85527711500010
 //
 const std = @import("std");
 
